@@ -49,6 +49,7 @@ public:
   Standard_EXPORT virtual void* Allocate(const size_t theSize);
   Standard_EXPORT virtual void* AllocateOptimal(const size_t theSize);
   Standard_EXPORT virtual void  Free(void* theAddress);
+  Standard_EXPORT virtual bool IsMine(void* /*thePtr*/) const { return true; }
 
   //! CommonBaseAllocator
   //! This method is designed to have the only one BaseAllocator (to avoid

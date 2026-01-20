@@ -89,6 +89,7 @@ public:
   //! Frees previously allocated memory.
   void deallocate(pointer thePnt, const size_type) const
   {
+    if (thePnt == nullptr) return;
     Standard::Free(static_cast<Standard_Address>(thePnt));
   }
 

@@ -18,6 +18,7 @@
 #include <Standard.hxx>
 
 #include <memory>
+#include <limits>
 #include <type_traits>
 
 //! Implements allocator requirements as defined in ISO C++ Standard 2003, section 20.1.5.
@@ -132,13 +133,23 @@ public:
   template <typename T>
   void deallocate(T* thePnt, size_type)
   {
-    myAllocator.IsNull() ? Standard::Free(thePnt) : myAllocator->Free(thePnt);
+    deallocate((pointer)thePnt, 0);
   }
 
   //! Frees previously allocated memory.
   void deallocate(pointer thePnt, size_type)
   {
-    myAllocator.IsNull() ? Standard::Free(thePnt) : myAllocator->Free(thePnt);
+    if (thePnt == nullptr) return;
+
+    if (!myAllocator.IsNull() && myAllocator->IsMine(thePnt))
+    {
+      myAllocator->Free(thePnt);
+    }
+    else
+    {
+       // Fallback to global free
+       Standard::Free(thePnt);
+    }
   }
 
   //! Constructs an object.
@@ -165,11 +176,11 @@ public:
   }
 
   //! Estimate maximum array size
-  size_t max_size() const noexcept { return ((size_t)(-1) / sizeof(ItemType)); }
+  size_t max_size() const noexcept { return (std::numeric_limits<size_t>::max)() / sizeof(ItemType); }
 
-  bool operator==(const NCollection_OccAllocator& theOther) const noexcept
+  bool operator==(const NCollection_OccAllocator& theOther) const
   {
-    return theOther.Allocator() == myAllocator;
+    return myAllocator == theOther.myAllocator;
   }
 
   template <class U>
@@ -178,26 +189,19 @@ public:
     return theOther.Allocator() == myAllocator;
   }
 
-  bool operator!=(const NCollection_OccAllocator& theOther) const noexcept
+  bool operator!=(const NCollection_OccAllocator& theOther) const
   {
-    return theOther.Allocator() != myAllocator;
+    return !(*this == theOther);
   }
 
   template <class U>
-  bool operator!=(const NCollection_OccAllocator<U>& theOther) const noexcept
+  bool operator!=(const NCollection_OccAllocator<U>& theOther) const
   {
-    return theOther.Allocator() != myAllocator;
+    return !(*this == theOther);
   }
 
 private:
   Handle(NCollection_BaseAllocator) myAllocator;
 };
-
-template <class U, class V>
-bool operator==(const NCollection_OccAllocator<U>& theFirst,
-                const NCollection_OccAllocator<V>& theSecond) noexcept
-{
-  return theFirst.Allocator() == theSecond.Allocator();
-}
 
 #endif

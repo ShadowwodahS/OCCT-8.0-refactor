@@ -78,7 +78,7 @@ AIS_SelectStatus AIS_Selection::Select(const Handle(SelectMgr_EntityOwner)& theO
   }
 
   AIS_NListOfEntityOwner::Iterator aListIter = myResultMap.Find(theOwner);
-  if (myIterator == aListIter)
+  if (myIterator.More() && myIterator.Value() == theOwner)
   {
     if (myIterator.More())
     {
