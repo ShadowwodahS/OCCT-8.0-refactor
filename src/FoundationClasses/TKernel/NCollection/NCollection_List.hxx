@@ -86,7 +86,7 @@ public:
     : BaseList(NCollection_OccAllocator<TheItemType>(theAllocator)) {}
 
   //! Returns attached allocator
-  const Handle(NCollection_BaseAllocator)& Allocator() const 
+  Handle(NCollection_BaseAllocator) Allocator() const 
   { 
     return this->get_allocator().Allocator(); 
   }
@@ -134,9 +134,35 @@ public:
   //! Clear this list
   void Clear(const Handle(NCollection_BaseAllocator)& theAllocator = 0L)
   {
-    this->clear();
-    if (!theAllocator.IsNull()) {
-      this->get_allocator().SetAllocator(theAllocator);
+    if (*(void**)this == nullptr) 
+    {
+      // Case 1: Memory is zeroed (uninitialized or memset)
+      new (this) NCollection_List(theAllocator);
+      return;
+    }
+
+    // Check if the current list state is potentially corrupted or needs special handling.
+    // In OCCT's BOPAlgo, IncAllocator::Reset(false) invalidates std::list's internal pointers.
+    // MSVC list layout: [Proxy*, Head*, Size, AllocPtr]
+    void** aPtrs = (void**)this;
+    void*  aHead = aPtrs[1];
+    if (aHead == nullptr || ((void**)aHead)[0] == nullptr)
+    {
+      // Case 2: Corrupted state (e.g. after Reset(false)). 
+      // We skip the destructor (which would crash) and re-initialize in-place.
+      // Note: Small objects like sentinel/proxy leaked in IncAllocator are fine
+      // because IncAllocator memory is transient.
+      new (this) NCollection_List(theAllocator.IsNull() ? 
+          this->get_allocator().Allocator() : theAllocator);
+    }
+    else
+    {
+      // Case 3: Standard state. Safe to clear.
+      this->clear();
+      if (!theAllocator.IsNull() && this->get_allocator().Allocator() != theAllocator)
+      {
+        *this = NCollection_List(theAllocator);
+      }
     }
   }
 

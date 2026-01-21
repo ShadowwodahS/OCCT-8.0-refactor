@@ -45,7 +45,8 @@ public:
   typedef const value_type& const_reference;
   typedef size_t            size_type;
   typedef ptrdiff_t         difference_type;
-  typedef std::false_type   propagate_on_container_move_assignment; // std::false_type
+  typedef std::false_type   propagate_on_container_move_assignment;
+  typedef std::false_type   propagate_on_container_swap;
 
   template <typename OtherType>
   struct rebind
@@ -139,17 +140,7 @@ public:
   //! Frees previously allocated memory.
   void deallocate(pointer thePnt, size_type)
   {
-    if (thePnt == nullptr) return;
-
-    if (!myAllocator.IsNull() && myAllocator->IsMine(thePnt))
-    {
-      myAllocator->Free(thePnt);
-    }
-    else
-    {
-       // Fallback to global free
-       Standard::Free(thePnt);
-    }
+    myAllocator.IsNull() ? Standard::Free(thePnt) : myAllocator->Free(thePnt);
   }
 
   //! Constructs an object.
