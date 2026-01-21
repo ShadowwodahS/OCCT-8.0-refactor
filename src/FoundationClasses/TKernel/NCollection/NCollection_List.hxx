@@ -136,41 +136,17 @@ public:
   {
     if (*(void**)this == nullptr) 
     {
+      // Case 1: Uninitialized memory (e.g. allocated via Standard::Allocate without constructor)
       new (this) NCollection_List(theAllocator);
       return;
     }
 
-    Handle(NCollection_BaseAllocator) anOldAlloc = this->Allocator();
-    Handle(NCollection_BaseAllocator) anNewAlloc = theAllocator.IsNull() ? anOldAlloc : theAllocator;
-
-    bool isOldInc = false;
-    if (!anOldAlloc.IsNull())
-    {
-      const char* name = anOldAlloc->DynamicType()->Name();
-      if (name != nullptr && strcmp(name, "NCollection_IncAllocator") == 0)
-      {
-        isOldInc = true;
-      }
-    }
-
-    if (isOldInc)
-    {
-      // If current allocator is Incremental, it might have been Reset(false).
-      // Calling clear() would access invalid sentinel/proxy pointers and crash.
-      // We skip clear() and re-initialize in-place.
-      // To avoid leaking the allocator handle, we manually decrement its ref count.
-      anOldAlloc->DecrementRefCounter();
-      new (this) NCollection_List(anNewAlloc);
-    }
-    else
-    {
-      // Standard path: safe to clear and re-assign if needed.
-      this->clear();
-      if (!theAllocator.IsNull() && this->Allocator() != theAllocator)
-      {
-        *this = NCollection_List(theAllocator);
-      }
-    }
+    // Standard path: MUST call destructor and constructor to release/re-acquire
+    // internal list structures (Proxy, Sentinel) and manage allocator handles properly.
+    Handle(NCollection_BaseAllocator) anAlloc = theAllocator.IsNull() ? 
+        this->Allocator() : theAllocator;
+    this->~NCollection_List();
+    new (this) NCollection_List(anAlloc);
   }
 
   //! First item
