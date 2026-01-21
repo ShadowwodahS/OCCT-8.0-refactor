@@ -140,7 +140,16 @@ public:
   //! Frees previously allocated memory.
   void deallocate(pointer thePnt, size_type)
   {
-    myAllocator.IsNull() ? Standard::Free(thePnt) : myAllocator->Free(thePnt);
+    if (thePnt == nullptr) return;
+
+    if (!myAllocator.IsNull() && myAllocator->IsMine(thePnt))
+    {
+      myAllocator->Free(thePnt);
+    }
+    else
+    {
+      Standard::Free(thePnt);
+    }
   }
 
   //! Constructs an object.

@@ -17,6 +17,7 @@
 !/adm/
 !/cmake/
 !/data/
+!/docs/
 !/dox/
 !/samples/
 !/src/
@@ -55,7 +56,6 @@
 /lin
 /mac
 /wnt
-/doc
 /inc
 /work
 

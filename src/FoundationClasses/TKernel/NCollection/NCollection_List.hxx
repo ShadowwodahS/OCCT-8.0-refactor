@@ -136,30 +136,37 @@ public:
   {
     if (*(void**)this == nullptr) 
     {
-      // Case 1: Memory is zeroed (uninitialized or memset)
       new (this) NCollection_List(theAllocator);
       return;
     }
 
-    // Check if the current list state is potentially corrupted or needs special handling.
-    // In OCCT's BOPAlgo, IncAllocator::Reset(false) invalidates std::list's internal pointers.
-    // MSVC list layout: [Proxy*, Head*, Size, AllocPtr]
-    void** aPtrs = (void**)this;
-    void*  aHead = aPtrs[1];
-    if (aHead == nullptr || ((void**)aHead)[0] == nullptr)
+    Handle(NCollection_BaseAllocator) anOldAlloc = this->Allocator();
+    Handle(NCollection_BaseAllocator) anNewAlloc = theAllocator.IsNull() ? anOldAlloc : theAllocator;
+
+    bool isOldInc = false;
+    if (!anOldAlloc.IsNull())
     {
-      // Case 2: Corrupted state (e.g. after Reset(false)). 
-      // We skip the destructor (which would crash) and re-initialize in-place.
-      // Note: Small objects like sentinel/proxy leaked in IncAllocator are fine
-      // because IncAllocator memory is transient.
-      new (this) NCollection_List(theAllocator.IsNull() ? 
-          this->get_allocator().Allocator() : theAllocator);
+      const char* name = anOldAlloc->DynamicType()->Name();
+      if (name != nullptr && strcmp(name, "NCollection_IncAllocator") == 0)
+      {
+        isOldInc = true;
+      }
+    }
+
+    if (isOldInc)
+    {
+      // If current allocator is Incremental, it might have been Reset(false).
+      // Calling clear() would access invalid sentinel/proxy pointers and crash.
+      // We skip clear() and re-initialize in-place.
+      // To avoid leaking the allocator handle, we manually decrement its ref count.
+      anOldAlloc->DecrementRefCounter();
+      new (this) NCollection_List(anNewAlloc);
     }
     else
     {
-      // Case 3: Standard state. Safe to clear.
+      // Standard path: safe to clear and re-assign if needed.
       this->clear();
-      if (!theAllocator.IsNull() && this->get_allocator().Allocator() != theAllocator)
+      if (!theAllocator.IsNull() && this->Allocator() != theAllocator)
       {
         *this = NCollection_List(theAllocator);
       }
