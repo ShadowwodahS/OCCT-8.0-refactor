@@ -15,4 +15,6 @@ set(OCCT_BRepAlgo_FILES
   BRepAlgo_Loop.hxx
   BRepAlgo_NormalProjection.cxx
   BRepAlgo_NormalProjection.hxx
+  Toolkit_VertexClusterer.cxx
+  Toolkit_VertexClusterer.hxx
 )

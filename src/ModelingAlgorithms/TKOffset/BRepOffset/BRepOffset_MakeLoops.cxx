@@ -22,6 +22,10 @@
 #include <BRepOffset_Analyse.hxx>
 #include <BRepOffset_MakeLoops.hxx>
 #include <TopExp.hxx>
+#include <fstream>
+#include <string>
+#include <BRepTools.hxx>
+#include <TopoDS_Compound.hxx>
 #include <TopExp_Explorer.hxx>
 #include <TopoDS.hxx>
 #include <TopoDS_Edge.hxx>
@@ -103,6 +107,27 @@ void BRepOffset_MakeLoops::Build(const TopTools_ListOfShape&   LF,
     // MAJ SD.
     //------------------------
     const TopTools_ListOfShape& NF = Loops.NewFaces();
+    if (NF.IsEmpty())
+    {
+      static int debug_fail_counter = 0;
+      debug_fail_counter++;
+      std::ofstream logFile("d:/debug_brepoffset.log", std::ios::app);
+      logFile << "Warning (#" << debug_fail_counter << "): BRepOffset_MakeLoops::Build: No new faces constructed for face." << std::endl;
+      
+      std::string fName = "d:/failed_face_" + std::to_string(debug_fail_counter) + ".brep";
+      BRepTools::Write(F, fName.c_str());
+      logFile << "  Saved face to: " << fName << std::endl;
+
+      TopoDS_Compound sc;
+      BRep_Builder BB;
+      BB.MakeCompound(sc);
+      for (TopTools_ListIteratorOfListOfShape itLog(LE); itLog.More(); itLog.Next()) BB.Add(sc, itLog.Value());
+      std::string eName = "d:/failed_edges_" + std::to_string(debug_fail_counter) + ".brep";
+      BRepTools::Write(sc, eName.c_str());
+      logFile << "  Saved descendant edges to: " << eName << std::endl;
+
+      logFile.close();
+    }
     //-----------------------
     // F => New faces;
     //-----------------------
@@ -545,6 +570,10 @@ void BRepOffset_MakeLoops::BuildFaces(const TopTools_ListOfShape&   LF,
         }
       }
     }
+
+
+
+
     if (ToRebuild)
     {
       //------------------------
@@ -556,6 +585,9 @@ void BRepOffset_MakeLoops::BuildFaces(const TopTools_ListOfShape&   LF,
       // MAJ SD.
       //------------------------
       const TopTools_ListOfShape& NF = Loops.NewFaces();
+      if (NF.IsEmpty())
+      {
+      }
       //-----------------------
       // F => New faces;
       //-----------------------

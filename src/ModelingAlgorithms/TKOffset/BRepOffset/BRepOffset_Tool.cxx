@@ -28,6 +28,7 @@
 #include <BRepAdaptor_Curve2d.hxx>
 #include <BRepAdaptor_Surface.hxx>
 #include <BRepAlgo_AsDes.hxx>
+#include <fstream>
 #include <BRepAlgo_Image.hxx>
 #include <BRepLib.hxx>
 #include <BRepLib_MakeEdge.hxx>
@@ -736,11 +737,12 @@ void BRepOffset_Tool::PipeInter(const TopoDS_Face&    F1,
   Handle(Geom_Surface) S2 = BRep_Tool::Surface(F2);
 
   GeomInt_IntSS Inter(S1, S2, Precision::Confusion(), 1, 1, 1);
-
+  
   if (Inter.IsDone())
   {
     for (Standard_Integer i = 1; i <= Inter.NbLines(); i++)
     {
+  {
       CI = Inter.Line(i);
       if (ToSmall(CI))
         continue;
@@ -783,6 +785,7 @@ void BRepOffset_Tool::PipeInter(const TopoDS_Face&    F1,
 #endif
     }
   }
+}
 }
 
 //=======================================================================
@@ -1400,35 +1403,47 @@ void BRepOffset_Tool::Inter3D(const TopoDS_Face&    F1,
 
   // Check if the faces are planar and not trimmed - in this case
   // the IntTools_FaceFace intersection algorithm will be used directly.
-  BRepAdaptor_Surface aBAS1(F1, Standard_False), aBAS2(F2, Standard_False);
+  TopoDS_Face F1Surf = F1;
+  BRepOffset_Tool::EnLargeFace(F1, F1Surf, Standard_True, Standard_False, Standard_True, Standard_True, Standard_True, 1, 0.001, 0.001, 0.001, 0.001);
+
+  TopoDS_Face F2Surf = F2;
+  BRepOffset_Tool::EnLargeFace(F2, F2Surf, Standard_True, Standard_False, Standard_True, Standard_True, Standard_True, 1, 0.001, 0.001, 0.001, 0.001);
+
+  BRepAdaptor_Surface aBAS1(F1Surf, Standard_False), aBAS2(F2Surf, Standard_False);
   if (aBAS1.GetType() == GeomAbs_Plane && aBAS2.GetType() == GeomAbs_Plane)
   {
-    aBAS1.Initialize(F1, Standard_True);
+    aBAS1.Initialize(F1Surf, Standard_True);
     if (IsInf(aBAS1.LastUParameter()) && IsInf(aBAS1.LastVParameter()))
     {
-      aBAS2.Initialize(F2, Standard_True);
+      aBAS2.Initialize(F2Surf, Standard_True);
       if (IsInf(aBAS2.LastUParameter()) && IsInf(aBAS2.LastVParameter()))
       {
         // Intersect the planes without pave filler
-        PerformPlanes(F1, F2, Side, L1, L2);
+        PerformPlanes(F1Surf, F2Surf, Side, L1, L2);
         return;
       }
     }
   }
 
   // create 3D curves on faces
-  BRepLib::BuildCurves3d(F1);
-  BRepLib::BuildCurves3d(F2);
-  UpdateVertexTolerances(F1);
-  UpdateVertexTolerances(F2);
+  BRepLib::BuildCurves3d(F1Surf);
+  BRepLib::BuildCurves3d(F2Surf);
+  UpdateVertexTolerances(F1Surf);
+  UpdateVertexTolerances(F2Surf);
+
+
 
   BOPAlgo_PaveFiller   aPF;
+  // Use fuzzy value to handle grazing intersections or approximation errors
+  aPF.SetFuzzyValue(1.e-5); 
   TopTools_ListOfShape aLS;
-  aLS.Append(F1);
-  aLS.Append(F2);
+  aLS.Append(F1Surf);
+  aLS.Append(F2Surf);
   aPF.SetArguments(aLS);
   //
   aPF.Perform();
+  
+  //
 
   TopTools_IndexedMapOfShape TrueEdges;
   if (!RefEdge.IsNull())
@@ -1530,6 +1545,14 @@ void BRepOffset_Tool::Inter3D(const TopoDS_Face&    F1,
 
         L1.Append(anEdge.Oriented(O1));
         L2.Append(anEdge.Oriented(O2));
+
+        {
+             std::ofstream logFile("d:/debug_brepoffset.log", std::ios::app);
+             logFile << "  Inter3D: Added edge " << (void*)&anEdge << " to L1/L2" << std::endl;
+             TopoDS_Vertex V1, V2; TopExp::Vertices(anEdge, V1, V2);
+             logFile << "    V1=(" << BRep_Tool::Pnt(V1).X() << "," << BRep_Tool::Pnt(V1).Y() << "," << BRep_Tool::Pnt(V1).Z() << ")" << std::endl;
+             logFile << "    V2=(" << BRep_Tool::Pnt(V2).X() << "," << BRep_Tool::Pnt(V2).Y() << "," << BRep_Tool::Pnt(V2).Z() << ")" << std::endl;
+        }
 
 #ifdef DRAW
         if (AffichInter)
@@ -1633,6 +1656,8 @@ void BRepOffset_Tool::Inter3D(const TopoDS_Face&    F1,
             }
             else
             {
+              std::ofstream logFile("d:/debug_brepoffset.log", std::ios::app);
+              logFile << "  Inter3D: Removing excess edge " << (void*)&anEdge << " Angle: " << MinAngle << " MinSqDist: " << 0.0 << std::endl;
               L1.Remove(itlist1);
               L2.Remove(itlist2);
             }
@@ -3336,14 +3361,23 @@ Standard_Boolean BRepOffset_Tool::EnLargeFace(const TopoDS_Face&     F,
     VV2 = std::min(VS2, VV2);
   }
 
+  // Override with explicit lengths if provided
+  if (theLenBeforeUfirst != -1.) UU1 = UF1 - theLenBeforeUfirst;
+  if (theLenAfterUlast != -1.)   UU2 = UF2 + theLenAfterUlast;
+  if (theLenBeforeVfirst != -1.) VV1 = VF1 - theLenBeforeVfirst;
+  if (theLenAfterVlast != -1.)   VV2 = VF2 + theLenAfterVlast;
+
   if (S->IsUPeriodic())
   {
     uperiodic            = Standard_True;
     Standard_Real Period = S->UPeriod();
     Standard_Real Delta  = Period - (UF2 - UF1);
     Standard_Real alpha  = 0.1;
-    UU1                  = UF1 - alpha * Delta;
-    UU2                  = UF2 + alpha * Delta;
+    Standard_Real du_first = (theLenBeforeUfirst == -1.) ? (alpha * Delta) : theLenBeforeUfirst;
+    Standard_Real du_last  = (theLenAfterUlast == -1.) ? (alpha * Delta) : theLenAfterUlast;
+    
+    UU1 = UF1 - du_first;
+    UU2 = UF2 + du_last;
     if ((UU2 - UU1) > Period)
     {
       UU2 = UU1 + Period;
@@ -3355,8 +3389,11 @@ Standard_Boolean BRepOffset_Tool::EnLargeFace(const TopoDS_Face&     F,
     Standard_Real Period = S->VPeriod();
     Standard_Real Delta  = Period - (VF2 - VF1);
     Standard_Real alpha  = 0.1;
-    VV1                  = VF1 - alpha * Delta;
-    VV2                  = VF2 + alpha * Delta;
+    Standard_Real dv_first = (theLenBeforeVfirst == -1.) ? (alpha * Delta) : theLenBeforeVfirst;
+    Standard_Real dv_last  = (theLenAfterVlast == -1.) ? (alpha * Delta) : theLenAfterVlast;
+
+    VV1 = VF1 - dv_first;
+    VV2 = VF2 + dv_last;
     if ((VV2 - VV1) > Period)
     {
       VV2 = VV1 + Period;
@@ -4308,6 +4345,12 @@ void PerformPlanes(const TopoDS_Face&    theFace1,
   IntTools_FaceFace aFF;
   aFF.SetParameters(Standard_True, Standard_True, Standard_True, Precision::Confusion());
   aFF.Perform(theFace1, theFace2);
+  
+  {
+      std::ofstream logFile("d:/debug_brepoffset.log", std::ios::app);
+      logFile << "PerformPlanes: F1/F2 intersected. IsDone=" << aFF.IsDone() << " NbCurves=" << aFF.Lines().Length() << std::endl;
+  }
+
   //
   if (!aFF.IsDone())
   {

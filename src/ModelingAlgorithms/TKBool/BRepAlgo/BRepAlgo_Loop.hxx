@@ -53,6 +53,7 @@ public:
   Standard_EXPORT void SetImageVV(const BRepAlgo_Image& theImageVV);
 
   //! Make loops.
+  Standard_DEPRECATED("Use PerformNew() instead")
   Standard_EXPORT void Perform();
 
   //! Update VE map according to Image Vertex - Vertex
@@ -67,6 +68,9 @@ public:
   //! Returns the list of wires performed.
   //! can be an empty list.
   Standard_EXPORT const TopTools_ListOfShape& NewWires() const;
+
+  //! Returns the list of problematic shapes (e.g. open wires).
+  Standard_EXPORT const TopTools_ListOfShape& ProblematicWires() const;
 
   //! Build faces from the wires result.
   Standard_EXPORT void WiresToFaces();
@@ -85,6 +89,9 @@ public:
 
   Standard_EXPORT void VerticesForSubstitute(TopTools_DataMapOfShapeShape& VerVerMap);
 
+  //! New robust loop building logic.
+  Standard_EXPORT void PerformNew();
+
   //! Set maximal tolerance used for comparing distances between vertices.
   void SetTolConf(const Standard_Real theTolConf) { myTolConf = theTolConf; }
 
@@ -99,6 +106,7 @@ private:
   TopTools_DataMapOfShapeListOfShape myVerOnEdges;
   TopTools_ListOfShape               myNewWires;
   TopTools_ListOfShape               myNewFaces;
+  TopTools_ListOfShape               myProblematicWires;
   TopTools_DataMapOfShapeListOfShape myCutEdges;
   TopTools_DataMapOfShapeShape       myVerticesForSubstitute;
   BRepAlgo_Image                     myImageVV;
