@@ -22,6 +22,10 @@
 #include <Standard_Real.hxx>
 #include <Standard_Boolean.hxx>
 
+#include <cmath>
+#include <tuple>
+#include <type_traits>
+
 class gp_Ax1;
 class gp_Ax2;
 class gp_Trsf;
@@ -117,6 +121,19 @@ public:
   //! Returns the coordinates of this point.
   //! Note: This syntax allows direct modification of the returned value.
   constexpr gp_XYZ& ChangeCoord() noexcept { return coord; }
+
+  //! Structured binding support
+  template <std::size_t I>
+  constexpr const Standard_Real& get() const noexcept
+  {
+    return coord.get<I>();
+  }
+
+  template <std::size_t I>
+  constexpr Standard_Real& get() noexcept
+  {
+    return coord.get<I>();
+  }
 
   //! Assigns the result of the following expression to this point
   //! (theAlpha*this + theBeta*theP) / (theAlpha + theBeta)
@@ -223,18 +240,40 @@ public:
   Standard_EXPORT Standard_Boolean InitFromJson(const Standard_SStream& theSStream,
                                                 Standard_Integer&       theStreamPos);
 
+  // =======================================================================
+  // Operators
+  // =======================================================================
+
+  // Pnt + Pnt is invalid effectively.
+  gp_Pnt operator+(const gp_Pnt&) const = delete;
+
 private:
   gp_XYZ coord;
 };
 
+//=================================================================================================
+
+// Helper for structured bindings
 namespace std
 {
+template <>
+struct tuple_size<gp_Pnt> : integral_constant<size_t, 3>
+{
+};
+
+template <size_t I>
+struct tuple_element<I, gp_Pnt>
+{
+  using type = Standard_Real;
+};
+
 template <>
 struct hash<gp_Pnt>
 {
   size_t operator()(const gp_Pnt& thePnt) const noexcept
   {
-    union {
+    union
+    {
       Standard_Real    R[3];
       Standard_Integer I[6];
     } U;
@@ -269,7 +308,7 @@ struct equal_to<gp_Pnt>
 
 inline Standard_Real gp_Pnt::Distance(const gp_Pnt& theOther) const
 {
-  return sqrt(SquareDistance(theOther));
+  return std::sqrt(SquareDistance(theOther));
 }
 
 //=================================================================================================
@@ -316,6 +355,25 @@ inline constexpr gp_Pnt gp_Pnt::Translated(const gp_Vec& theV) const noexcept
   gp_Pnt aP = *this;
   aP.coord.Add(theV.XYZ());
   return aP;
+}
+
+//=================================================================================================
+// Operators
+//=================================================================================================
+
+inline constexpr gp_Pnt operator+(const gp_Pnt& theP, const gp_Vec& theV) noexcept
+{
+  return theP.Translated(theV);
+}
+
+inline constexpr gp_Pnt operator-(const gp_Pnt& theP, const gp_Vec& theV) noexcept
+{
+  return theP.Translated(-theV);
+}
+
+inline constexpr gp_Vec operator-(const gp_Pnt& theP1, const gp_Pnt& theP2) noexcept
+{
+  return gp_Vec(theP1.XYZ() - theP2.XYZ());
 }
 
 #endif // _gp_Pnt_HeaderFile
