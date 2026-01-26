@@ -13,6 +13,8 @@ set(OCCT_BRepAlgo_FILES
   BRepAlgo_Image.hxx
   BRepAlgo_Loop.cxx
   BRepAlgo_Loop.hxx
+  BRepAlgo_LoopSolver.cxx
+  BRepAlgo_LoopSolver.hxx
   BRepAlgo_NormalProjection.cxx
   BRepAlgo_NormalProjection.hxx
 )
