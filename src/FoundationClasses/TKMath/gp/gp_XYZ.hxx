@@ -22,6 +22,10 @@
 #include <Standard_OStream.hxx>
 #include <Standard_SStream.hxx>
 
+#include <cmath>
+#include <tuple>
+#include <type_traits>
+
 //! This class describes a cartesian coordinate entity in
 //! 3D space {X,Y,Z}. This entity is used for algebraic
 //! calculation. This entity can be transformed
@@ -126,9 +130,26 @@ public:
   //! Returns the Z coordinate
   constexpr Standard_Real Z() const noexcept { return z; }
 
+  //! Structured binding support
+  template <std::size_t I>
+  constexpr const Standard_Real& get() const noexcept
+  {
+    if constexpr (I == 0) return x;
+    else if constexpr (I == 1) return y;
+    else if constexpr (I == 2) return z;
+  }
+
+  template <std::size_t I>
+  constexpr Standard_Real& get() noexcept
+  {
+    if constexpr (I == 0) return x;
+    else if constexpr (I == 1) return y;
+    else if constexpr (I == 2) return z;
+  }
+
   //! computes std::sqrt(X*X + Y*Y + Z*Z) where X, Y and Z are the three coordinates of this XYZ
   //! object.
-  Standard_Real Modulus() const { return sqrt(x * x + y * y + z * z); }
+  Standard_Real Modulus() const { return std::sqrt(x * x + y * y + z * z); }
 
   //! Computes X*X + Y*Y + Z*Z where X, Y and Z are the three coordinates of this XYZ object.
   constexpr Standard_Real SquareModulus() const noexcept { return (x * x + y * y + z * z); }
@@ -281,9 +302,9 @@ public:
   constexpr void operator*=(const gp_XYZ& theOther) noexcept { Multiply(theOther); }
 
   //! <me> = theMatrix * <me>
-  void Multiply(const gp_Mat& theMatrix) noexcept;
+  constexpr void Multiply(const gp_Mat& theMatrix) noexcept;
 
-  void operator*=(const gp_Mat& theMatrix) noexcept { Multiply(theMatrix); }
+  constexpr void operator*=(const gp_Mat& theMatrix) noexcept { Multiply(theMatrix); }
 
   //! @code
   //! New.X() = <me>.X() * theScalar;
@@ -311,7 +332,7 @@ public:
   }
 
   //! New = theMatrix * <me>
-  Standard_NODISCARD gp_XYZ Multiplied(const gp_Mat& theMatrix) const noexcept
+  Standard_NODISCARD constexpr gp_XYZ Multiplied(const gp_Mat& theMatrix) const noexcept
   {
     // Direct access to matrix data for optimal performance (gp_XYZ is friend of gp_Mat)
     return gp_XYZ(theMatrix.myMat[0][0] * x + theMatrix.myMat[0][1] * y + theMatrix.myMat[0][2] * z,
@@ -320,7 +341,7 @@ public:
                     + theMatrix.myMat[2][2] * z);
   }
 
-  Standard_NODISCARD gp_XYZ operator*(const gp_Mat& theMatrix) const noexcept
+  Standard_NODISCARD constexpr gp_XYZ operator*(const gp_Mat& theMatrix) const noexcept
   {
     return Multiplied(theMatrix);
   }
@@ -509,7 +530,7 @@ inline constexpr void gp_XYZ::Cross(const gp_XYZ& theRight) noexcept
 
 inline Standard_Real gp_XYZ::CrossMagnitude(const gp_XYZ& theRight) const
 {
-  return sqrt(CrossSquareMagnitude(theRight));
+  return std::sqrt(CrossSquareMagnitude(theRight));
 }
 
 //=================================================================================================
@@ -553,7 +574,7 @@ inline constexpr Standard_Real gp_XYZ::DotCross(const gp_XYZ& theCoord1,
 
 //=================================================================================================
 
-inline void gp_XYZ::Multiply(const gp_Mat& theMatrix) noexcept
+inline constexpr void gp_XYZ::Multiply(const gp_Mat& theMatrix) noexcept
 {
   // Cache original coordinates to avoid aliasing issues
   const Standard_Real aOrigX = x;
@@ -598,5 +619,17 @@ inline constexpr gp_XYZ operator*(const Standard_Real theScalar, const gp_XYZ& t
 {
   return theCoord1.Multiplied(theScalar);
 }
+
+namespace std {
+  template <>
+  struct tuple_size<gp_XYZ> : integral_constant<size_t, 3>
+  {};
+
+  template <size_t I>
+  struct tuple_element<I, gp_XYZ>
+  {
+    using type = Standard_Real;
+  };
+} // namespace std
 
 #endif // _gp_XYZ_HeaderFile
